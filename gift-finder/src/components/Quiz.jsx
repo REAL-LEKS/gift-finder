@@ -141,7 +141,7 @@ export default function Quiz() {
   const handleNext = () => {
     if (!canAdvance) return
     if (step < QUESTIONS.length - 1) setStep(s => s + 1)
-    else navigate(`/results?${answersToParams(answers)}`)
+    else navigate(`/results?${answersToParams(answers, customText)}`)
   }
 
   const handleBack = () => {
@@ -181,7 +181,7 @@ export default function Quiz() {
           onClick={() => navigate('/')}
           className="text-sm font-semibold text-gray-400 hover:text-brand-500 transition-colors"
         >
-          Skip
+          Exit
         </button>
       </div>
 
@@ -200,15 +200,14 @@ export default function Quiz() {
         <p className="text-gray-400 text-sm font-medium mb-8">{question.subtitle}</p>
 
         {/* Options grid */}
-        <div className={`grid gap-3 ${
-          question.options.length <= 6 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'
-        }`}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {question.options.map(({ value, label, icon: Icon }) => {
             const selected = isSelected(value)
             return (
               <button
                 key={value}
                 onClick={() => handleSelect(value)}
+                aria-pressed={selected}
                 className={`relative flex flex-col items-center justify-center py-6 px-4 rounded-3xl border-2 transition-all duration-200 bg-white group ${
                   selected
                     ? 'border-gold-500 shadow-md shadow-gold-100/60'

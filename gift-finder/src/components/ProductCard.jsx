@@ -25,6 +25,8 @@ export default function ProductCard({ gift }) {
             src={gift.image}
             alt={gift.title}
             onError={() => setImgError(true)}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
         )}
@@ -32,6 +34,7 @@ export default function ProductCard({ gift }) {
         {/* Heart / wishlist */}
         <button
           onClick={() => setWishlisted(w => !w)}
+          aria-label={wishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
           className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
         >
           <Heart

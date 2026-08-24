@@ -1,14 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Gift, Search, Heart, User } from 'lucide-react'
+import { Gift } from 'lucide-react'
 
 export default function Navbar() {
   const location = useLocation()
   const navigate = useNavigate()
 
   const navLinks = [
-    { label: 'Concierge', path: '/' },
-    { label: 'Curated', path: '/results' },
-    { label: 'Occasions', path: '/quiz' },
+    { label: 'Home', path: '/' },
+    { label: 'Gift Quiz', path: '/quiz' },
   ]
 
   return (
@@ -16,7 +15,7 @@ export default function Navbar() {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
 
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-1.5">
+        <Link to="/" className="flex items-center gap-1.5" aria-label="GiftFinder home">
           <Gift size={18} className="text-gold-500" />
           <span className="font-extrabold text-brand-500 text-lg tracking-tight">GiftFinder</span>
         </Link>
@@ -41,21 +40,14 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Right icons */}
-        <div className="flex items-center gap-2">
-          <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-brand-500">
-            <Search size={16} />
-          </button>
-          <button className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors text-gray-500 hover:text-gold-500">
-            <Heart size={16} />
-          </button>
-          <button
-            onClick={() => navigate('/quiz')}
-            className="ml-1 w-8 h-8 flex items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600 transition-colors"
-          >
-            <User size={14} />
-          </button>
-        </div>
+        {/* CTA */}
+        <button
+          onClick={() => navigate('/quiz')}
+          className="inline-flex items-center gap-1.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-full transition-colors active:scale-95"
+        >
+          <Gift size={14} />
+          Find a Gift
+        </button>
 
       </div>
     </nav>

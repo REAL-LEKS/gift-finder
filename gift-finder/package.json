@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Gift recommendation website for Nigerian shoppers",
   "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

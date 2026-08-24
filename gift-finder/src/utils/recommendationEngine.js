@@ -19,8 +19,8 @@ function scoreGift(gift, answers) {
   const { recipient, occasion, budget, interests, giftType } = answers;
   let score = gift.score; // start from the gift's base quality score
 
-  if (gift.recipient.includes(recipient)) score += 5;
-  if (gift.occasion.includes(occasion))   score += 3;
+  if (recipient && gift.recipient.includes(recipient)) score += 5;
+  if (occasion && gift.occasion.includes(occasion))     score += 3;
 
   const [budgetMin, budgetMax] = BUDGET_RANGES[budget] ?? [0, Infinity];
   if (gift.budget_min <= budgetMax && gift.budget_max >= budgetMin) score += 5;
@@ -29,7 +29,7 @@ function scoreGift(gift, answers) {
     if (gift.interests.includes(interest)) score += 4;
   }
 
-  if (gift.gift_type.includes(giftType)) score += 2;
+  if (giftType && gift.gift_type.includes(giftType)) score += 2;
 
   return score;
 }
@@ -37,7 +37,7 @@ function scoreGift(gift, answers) {
 /**
  * Return top gift recommendations sorted by match score.
  * @param {object} answers  - { recipient, occasion, budget, interests[], giftType }
- * @param {Array}  gifts    - full gifts array from gifts.json
+ * @param {Array}  gifts    - full gifts array
  * @param {number} limit    - max results to return (default 8)
  */
 export function getRecommendations(answers, gifts, limit = 8) {
@@ -57,6 +57,17 @@ export function matchPercent(score) {
   return Math.min(99, Math.max(72, pct));
 }
 
+/** True when the user answered at least one quiz question */
+export function hasAnswers(answers) {
+  return Boolean(
+    answers.recipient ||
+    answers.occasion ||
+    answers.budget ||
+    answers.giftType ||
+    answers.interests.length > 0
+  );
+}
+
 /** Parse quiz answers from URL search params */
 export function parseAnswersFromParams(searchParams) {
   return {
@@ -65,11 +76,18 @@ export function parseAnswersFromParams(searchParams) {
     budget:    searchParams.get('budget')    ?? '',
     interests: (searchParams.get('interests') ?? '').split(',').filter(Boolean),
     giftType:  searchParams.get('type')      ?? '',
+    custom: {
+      recipient: searchParams.get('cr') ?? '',
+      occasion:  searchParams.get('co') ?? '',
+      budget:    searchParams.get('cb') ?? '',
+      interests: searchParams.get('ci') ?? '',
+      giftType:  searchParams.get('ct') ?? '',
+    },
   };
 }
 
 /** Serialize quiz answers to URL search params string */
-export function answersToParams(answers) {
+export function answersToParams(answers, custom = {}) {
   const p = new URLSearchParams({
     recipient: answers.recipient,
     occasion:  answers.occasion,
@@ -77,5 +95,10 @@ export function answersToParams(answers) {
     interests: answers.interests.join(','),
     type:      answers.giftType,
   });
+  if (custom.recipient?.trim()) p.set('cr', custom.recipient.trim());
+  if (custom.occasion?.trim())  p.set('co', custom.occasion.trim());
+  if (custom.budget?.trim())    p.set('cb', custom.budget.trim());
+  if (custom.interests?.trim()) p.set('ci', custom.interests.trim());
+  if (custom.giftType?.trim())  p.set('ct', custom.giftType.trim());
   return p.toString();
 }

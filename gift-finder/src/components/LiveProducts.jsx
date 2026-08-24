@@ -5,7 +5,8 @@ import { Zap, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react'
  * Fetches live product listings from Jumia via the serverless function,
  * then renders them as clickable cards beneath the quiz recommendations.
  *
- * Gracefully falls back to a "view on Jumia" link if the fetch fails.
+ * Tries the Vercel path first (/api/jumia-search), then the Netlify path.
+ * Gracefully falls back to a "view on Jumia" link if both fail.
  */
 export default function LiveProducts({ query, jumiaSearchUrl }) {
   const [state, setState] = useState('idle') // idle | loading | success | error
@@ -13,27 +14,24 @@ export default function LiveProducts({ query, jumiaSearchUrl }) {
 
   const fetchLive = async () => {
     setState('loading')
-    try {
-      // In dev Netlify functions aren't available, so we check both paths
-      const endpoint = import.meta.env.DEV
-        ? null // skip in dev — no serverless runtime
-        : `/.netlify/functions/jumia-search?q=${encodeURIComponent(query)}`
+    const endpoints = [
+      `/api/jumia-search?q=${encodeURIComponent(query)}`,
+      `/.netlify/functions/jumia-search?q=${encodeURIComponent(query)}`,
+    ]
 
-      if (!endpoint) {
-        setState('error')
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint)
+        if (!res.ok) continue
+        const data = await res.json()
+        if (!data.products?.length) continue
+        setProducts(data.products)
+        setState('success')
         return
-      }
-
-      const res = await fetch(endpoint)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-
-      if (!data.products?.length) throw new Error('No products returned')
-      setProducts(data.products)
-      setState('success')
-    } catch {
-      setState('error')
+      } catch { /* try next endpoint */ }
     }
+
+    setState('error')
   }
 
   useEffect(() => {
@@ -105,6 +103,13 @@ export default function LiveProducts({ query, jumiaSearchUrl }) {
               Check Jumia directly for up-to-date pricing and stock.
             </p>
           </div>
+          <button
+            onClick={fetchLive}
+            className="shrink-0 flex items-center gap-1 border border-amber-300 text-amber-700 hover:bg-amber-100 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors"
+          >
+            <RefreshCw size={11} />
+            Retry
+          </button>
           <a
             href={jumiaSearchUrl}
             target="_blank"

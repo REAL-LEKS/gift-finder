@@ -6,9 +6,27 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   font-family: 'Montserrat', ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   background-color: #f8faf9;
+}
+
+::selection {
+  background-color: #fde68a;
+  color: #4d3507;
+}
+
+/* Hide scrollbars on horizontal filter rails while keeping them scrollable */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
