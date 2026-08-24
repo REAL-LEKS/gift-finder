@@ -80,6 +80,17 @@ export default function ProductCard({ gift }) {
           {gift.isLocal ? 'Shop Now' : 'Buy on Jumia'}
           <ShoppingBag size={13} />
         </button>
+
+        {!gift.isLocal && (
+          <a
+            href={`https://www.konga.com/search?query=${encodeURIComponent(gift.title)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 text-center block text-[11px] font-semibold text-sky-600 hover:text-sky-700 hover:underline transition-colors"
+          >
+            Also compare on Konga →
+          </a>
+        )}
       </div>
 
     </div>

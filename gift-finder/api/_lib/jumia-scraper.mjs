@@ -113,7 +113,7 @@ function parseProducts(html, fallbackQuery) {
     .map(list => ({ list, priced: list.filter(p => p.price).length }))
     .sort((a, b) => b.priced - a.priced || b.list.length - a.list.length)
 
-  return scored[0]?.list ?? []
+  return (scored[0]?.list ?? []).map(p => ({ ...p, source: 'jumia' }))
 }
 
 function parseJsonLd(html, fallbackQuery) {

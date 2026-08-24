@@ -139,10 +139,11 @@ export default function Results() {
               ))}
             </div>
 
-            {/* Live Jumia section */}
+            {/* Live store listings */}
             <LiveProducts
               query={filtered[0]?.title ?? answers.recipient}
               jumiaSearchUrl={`https://www.jumia.com.ng/catalog/?q=${encodeURIComponent((filtered[0]?.title ?? answers.recipient) + ' gift')}`}
+              kongaSearchUrl={`https://www.konga.com/search?query=${encodeURIComponent((filtered[0]?.title ?? answers.recipient) + ' gift')}`}
             />
 
             <div className="mt-12 bg-white rounded-4xl p-8 border border-brand-100 shadow-luxury text-center">
