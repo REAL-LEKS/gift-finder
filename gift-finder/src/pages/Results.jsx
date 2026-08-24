@@ -1,7 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, RefreshCw, Gift, Search, Zap } from 'lucide-react'
-import { getRecommendations, parseAnswersFromParams, matchPercent } from '../utils/recommendationEngine'
+import {
+  getRecommendations, parseAnswersFromParams, matchPercent, hasAnswers,
+} from '../utils/recommendationEngine'
 import ProductCard from '../components/ProductCard'
 import LiveProducts from '../components/LiveProducts'
 import giftsData from '../data/gifts.json'
@@ -30,6 +32,13 @@ export default function Results() {
   const [activeFilter, setActiveFilter] = useState('all')
 
   const answers = parseAnswersFromParams(searchParams)
+
+  // No quiz answers → nothing to personalise; send the user to the quiz
+  useEffect(() => {
+    if (!hasAnswers(answers)) navigate('/quiz', { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+
   const raw = getRecommendations(answers, ALL_GIFTS, 12)
 
   const recommendations = raw.map(gift => ({
@@ -44,6 +53,10 @@ export default function Results() {
   const recipientLabel = LABEL_MAP.recipient[answers.recipient] ?? answers.recipient
   const occasionLabel  = LABEL_MAP.occasion[answers.occasion]   ?? answers.occasion
   const budgetLabel    = LABEL_MAP.budget[answers.budget]       ?? answers.budget
+
+  const customNotes = Object.values(answers.custom ?? {}).filter(Boolean)
+
+  if (!hasAnswers(answers)) return null
 
   return (
     <div className="min-h-screen bg-[#FAFAF8]">
@@ -68,6 +81,11 @@ export default function Results() {
                 We've analysed preferences and our Nigerian gift database to find these perfect matches
                 {occasionLabel ? ` · ${occasionLabel}` : ''}
                 {budgetLabel ? ` · ${budgetLabel}` : ''}.
+                {customNotes.length > 0 && (
+                  <span className="block mt-0.5 text-brand-400">
+                    Including your notes: {customNotes.join(' · ')}
+                  </span>
+                )}
               </p>
             </div>
 

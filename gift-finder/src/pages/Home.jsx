@@ -1,10 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Gift, Sparkles, Heart, Zap, ArrowRight,
   Monitor, Shirt, Leaf, Dumbbell,
   Users, Home as HomeIcon, GraduationCap, Star, Wallet,
-  Package,
 } from 'lucide-react'
 import giftsData from '../data/gifts.json'
 import FeaturedBrands from '../components/FeaturedBrands'
@@ -18,17 +17,27 @@ const CATEGORY_TABS = [
 ]
 
 const BUDGET_FILTERS = [
-  { value: 'all',     label: 'All Prices' },
-  { value: 'under5k', label: 'Under ₦5k' },
-  { value: '10k-20k', label: '₦10k – ₦50k' },
-  { value: '50k+',    label: '₦50k+' },
+  { value: 'all',      label: 'All Prices' },
+  { value: 'under5k',  label: 'Under ₦5k' },
+  { value: '10k-50k',  label: '₦10k – ₦50k' },
+  { value: '50k+',     label: '₦50k+' },
 ]
 
 const BUDGET_RANGES = {
-  'all':     [0, Infinity],
-  'under5k': [0, 5000],
-  '10k-20k': [10000, 50000],
-  '50k+':    [50000, Infinity],
+  'all':      [0, Infinity],
+  'under5k':  [0, 5000],
+  '10k-50k':  [10000, 50000],
+  '50k+':     [50000, Infinity],
+}
+
+const WISHLIST_KEY = 'giftfinder-wishlist'
+
+function loadWishlist() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(WISHLIST_KEY) ?? '[]'))
+  } catch {
+    return new Set()
+  }
 }
 
 const POPULAR_CATEGORIES = [
@@ -44,8 +53,14 @@ export default function Home() {
   const navigate = useNavigate()
   const [activeCategory, setActiveCategory] = useState('all')
   const [activeBudget, setActiveBudget] = useState('all')
-  const [wishlist, setWishlist] = useState(new Set())
+  const [wishlist, setWishlist] = useState(loadWishlist)
   const [imgErrors, setImgErrors] = useState(new Set())
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WISHLIST_KEY, JSON.stringify([...wishlist]))
+    } catch { /* storage unavailable */ }
+  }, [wishlist])
 
   const toggleWishlist = (id) => {
     setWishlist(prev => {
@@ -57,6 +72,11 @@ export default function Home() {
 
   const markImgError = (id) => {
     setImgErrors(prev => new Set(prev).add(id))
+  }
+
+  const openGift = (gift) => {
+    if (gift.affiliate_link) window.open(gift.affiliate_link, '_blank', 'noopener,noreferrer')
+    else navigate('/quiz')
   }
 
   const trending = giftsData
@@ -152,7 +172,7 @@ export default function Home() {
           </div>
 
           {/* Category tabs */}
-          <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1">
+          <div className="flex items-center gap-2 mb-7 overflow-x-auto pb-1 scrollbar-hide">
             {CATEGORY_TABS.map(({ value, label, icon: Icon }) => (
               <button
                 key={value}
@@ -175,7 +195,7 @@ export default function Home() {
               {trending.map(gift => (
                 <div
                   key={gift.id}
-                  onClick={() => navigate('/quiz')}
+                  onClick={() => openGift(gift)}
                   className="relative cursor-pointer bg-gray-50 rounded-3xl overflow-hidden border border-gray-100 hover:shadow-luxury transition-all group"
                 >
                   {/* Image */}
@@ -185,17 +205,20 @@ export default function Home() {
                         src={gift.image}
                         alt={gift.title}
                         onError={() => markImgError(gift.id)}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-brand-50">
-                        <Package size={32} className="text-brand-200" strokeWidth={1.5} />
+                      <div className={`w-full h-full flex items-center justify-center text-5xl bg-gradient-to-br ${gift.bg ?? 'from-brand-50 to-brand-100'} select-none`}>
+                        {gift.emoji}
                       </div>
                     )}
 
                     {/* Heart */}
                     <button
                       onClick={e => { e.stopPropagation(); toggleWishlist(gift.id) }}
+                      aria-label={wishlist.has(gift.id) ? 'Remove from wishlist' : 'Add to wishlist'}
                       className="absolute top-2.5 left-2.5 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center shadow-sm hover:scale-110 transition-transform"
                     >
                       <Heart

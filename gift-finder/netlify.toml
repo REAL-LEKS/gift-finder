@@ -4,7 +4,11 @@
   functions = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
+
+# Shared scraper module imported by the Netlify function
+[functions]
+  included_files = ["api/_lib/**"]
 
 # SPA fallback — all routes serve index.html
 [[redirects]]
