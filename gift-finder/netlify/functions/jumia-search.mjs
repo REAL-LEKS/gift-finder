@@ -4,7 +4,7 @@
  * Scraping logic lives in api/_lib/jumia-scraper.mjs (shared with Vercel + dev server).
  */
 
-import { searchJumia } from '../../api/_lib/jumia-scraper.mjs'
+import { searchJumia, JumiaError } from '../../api/_lib/jumia-scraper.mjs'
 
 const headers = {
   'Content-Type': 'application/json',
@@ -21,6 +21,13 @@ export const handler = async (event) => {
     const data = await searchJumia(q)
     return { statusCode: 200, headers, body: JSON.stringify(data) }
   } catch (err) {
-    return { statusCode: 502, headers, body: JSON.stringify({ error: err.message, live: false }) }
+    return {
+      statusCode: 502,
+      headers,
+      body: JSON.stringify({
+        error: err instanceof JumiaError ? err.message : 'Upstream request failed',
+        live: false,
+      }),
+    }
   }
 }

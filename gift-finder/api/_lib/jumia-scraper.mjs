@@ -5,19 +5,67 @@
  *   - netlify/functions/jumia-search.mjs
  *   - vite.config.js dev/preview middleware (local /api/jumia-search)
  *
- * In-process cache keeps us from hammering Jumia on every page load.
- * TTL is 1 hour; a cold start clears the cache automatically.
+ * Resilience against Jumia's aggressive rate limiting (it drops
+ * connections instead of returning errors):
+ *   - retries with backoff
+ *   - single-flight: identical concurrent queries share one request
+ *   - stale-while-error: cached results are served even after the
+ *     TTL expires rather than failing outright
  */
 
-const CACHE = new Map()
-const TTL_MS = 60 * 60 * 1000 // 1 hour
+const FRESH_TTL_MS = 60 * 60 * 1000      // 1 hour: serve without re-fetching
+const STALE_MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24h: still better than nothing
 
-export async function searchJumia(q) {
+const CACHE = new Map()   // q -> { data, at }
+const INFLIGHT = new Map() // q -> Promise<data>
+
+export class JumiaError extends Error {
+  constructor(message, staleData = null) {
+    super(message)
+    this.name = 'JumiaError'
+    this.staleData = staleData
+  }
+}
+
+export async function searchJumia(q, { timeoutMs = 6500, attempts = 2 } = {}) {
   const cached = CACHE.get(q)
-  if (cached && Date.now() - cached.at < TTL_MS) {
+
+  if (cached && Date.now() - cached.at < FRESH_TTL_MS) {
     return cached.data
   }
 
+  // Share a single request between identical concurrent queries
+  if (INFLIGHT.has(q)) return INFLIGHT.get(q)
+
+  const job = (async () => {
+    let lastErr
+    for (let i = 0; i < attempts; i++) {
+      if (i > 0) await sleep(600 * i)
+      try {
+        const data = await fetchOnce(q, timeoutMs)
+        CACHE.set(q, { data, at: Date.now() })
+        return data
+      } catch (err) {
+        lastErr = err
+      }
+    }
+
+    // All attempts failed — serve stale cache if we have anything
+    if (cached && Date.now() - cached.at < STALE_MAX_AGE_MS) {
+      return { ...cached.data, stale: true }
+    }
+    throw new JumiaError(lastErr?.message ?? 'Jumia request failed')
+  })()
+
+  INFLIGHT.set(q, job)
+  try {
+    return await job
+  } finally {
+    INFLIGHT.delete(q)
+  }
+}
+
+async function fetchOnce(q, timeoutMs) {
   const url = `https://www.jumia.com.ng/catalog/?q=${encodeURIComponent(q)}`
   const res = await fetch(url, {
     headers: {
@@ -25,50 +73,82 @@ export async function searchJumia(q) {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-NG,en;q=0.9',
       'Referer': 'https://www.jumia.com.ng/',
+      'Cache-Control': 'no-cache',
     },
-    signal: AbortSignal.timeout(9000),
+    signal: AbortSignal.timeout(timeoutMs),
   })
 
   if (!res.ok) throw new Error(`Jumia HTTP ${res.status}`)
 
   const html = await res.text()
-  const data = {
+  if (/captcha|Attention Required|Access Denied|Just a moment/i.test(html)) {
+    throw new Error('Jumia served a bot challenge page')
+  }
+
+  return {
     products: parseProducts(html, q),
     query: q,
     jumiaUrl: url,
     live: true,
     fetchedAt: Date.now(),
   }
-  CACHE.set(q, { data, at: Date.now() })
-  return data
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms))
 }
 
 /**
  * Parse product listings from Jumia's HTML.
- * Tries JSON-LD structured data first (most reliable),
- * then falls back to regex extraction of article cards.
+ * Runs two independent extraction strategies and prefers whichever
+ * yields the most entries WITH prices:
+ *   1. JSON-LD structured data (reliable names/links, sometimes prices)
+ *   2. Article card regex (names + prices + images)
  */
 function parseProducts(html, fallbackQuery) {
+  const fromLd = parseJsonLd(html, fallbackQuery)
+  const fromArticles = parseArticleCards(html, fallbackQuery)
+
+  const scored = [fromArticles, fromLd]
+    .map(list => ({ list, priced: list.filter(p => p.price).length }))
+    .sort((a, b) => b.priced - a.priced || b.list.length - a.list.length)
+
+  return scored[0]?.list ?? []
+}
+
+function parseJsonLd(html, fallbackQuery) {
   const products = []
 
-  // ── Method 1: JSON-LD ItemList ───────────────────────────────
   const ldScripts = html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)
   for (const [, json] of ldScripts) {
     try {
       const obj = JSON.parse(json.trim())
-      if (obj['@type'] === 'ItemList' && obj.itemListElement?.length) {
-        for (const item of obj.itemListElement.slice(0, 8)) {
-          const name = item.name || item.item?.name
-          const url  = item.url  || item.item?.url
-          const img  = item.image || item.item?.image
-          if (name && url) products.push({ name, price: null, image: img ?? null, link: url })
+      if (obj['@type'] !== 'ItemList' || !obj.itemListElement?.length) continue
+
+      for (const item of obj.itemListElement.slice(0, 8)) {
+        const node = item.item ?? item
+        const name = node.name
+        const url  = node.url
+        const img  = Array.isArray(node.image) ? node.image[0] : node.image
+        const offer = Array.isArray(node.offers) ? node.offers[0] : node.offers
+        const price = formatPrice(offer?.price, offer?.priceCurrency)
+        if (name && url) {
+          products.push({
+            name,
+            price,
+            image: typeof img === 'string' ? img : null,
+            link: url.startsWith('http') ? url : `https://www.jumia.com.ng${url}`,
+          })
         }
-        if (products.length) return products
       }
     } catch { /* ignore malformed JSON-LD */ }
   }
 
-  // ── Method 2: Article card regex ────────────────────────────
+  return products
+}
+
+function parseArticleCards(html, fallbackQuery) {
+  const products = []
   const articleRe = /<article[^>]*class="[^"]*prd[^"]*"[^>]*>([\s\S]*?)<\/article>/gi
   let m
   while ((m = articleRe.exec(html)) !== null && products.length < 8) {
@@ -89,4 +169,12 @@ function parseProducts(html, fallbackQuery) {
   }
 
   return products
+}
+
+function formatPrice(amount, currency) {
+  if (amount == null) return null
+  const symbol = currency === 'NGN' ? '₦ ' : ''
+  const num = Number(amount)
+  if (!Number.isFinite(num)) return null
+  return `${symbol}${num.toLocaleString('en-NG')}`
 }

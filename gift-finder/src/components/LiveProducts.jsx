@@ -1,19 +1,23 @@
-import { useState, useEffect } from 'react'
-import { Zap, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Zap, ExternalLink, AlertCircle, RefreshCw, Clock } from 'lucide-react'
 
 /**
  * Fetches live product listings from Jumia via the serverless function,
  * then renders them as clickable cards beneath the quiz recommendations.
  *
  * Tries the Vercel path first (/api/jumia-search), then the Netlify path.
- * Gracefully falls back to a "view on Jumia" link if both fail.
+ * The backend retries + serves cached results when Jumia throttles us;
+ * this component just reflects whatever state it gets.
  */
 export default function LiveProducts({ query, jumiaSearchUrl }) {
   const [state, setState] = useState('idle') // idle | loading | success | error
   const [products, setProducts] = useState([])
+  const [stale, setStale] = useState(false)
+  const requestId = useRef(0)
 
   const fetchLive = async () => {
     setState('loading')
+    const id = ++requestId.current
     const endpoints = [
       `/api/jumia-search?q=${encodeURIComponent(query)}`,
       `/.netlify/functions/jumia-search?q=${encodeURIComponent(query)}`,
@@ -25,17 +29,20 @@ export default function LiveProducts({ query, jumiaSearchUrl }) {
         if (!res.ok) continue
         const data = await res.json()
         if (!data.products?.length) continue
+        if (id !== requestId.current) return // a newer request superseded this one
         setProducts(data.products)
+        setStale(Boolean(data.stale))
         setState('success')
         return
       } catch { /* try next endpoint */ }
     }
 
-    setState('error')
+    if (id === requestId.current) setState('error')
   }
 
   useEffect(() => {
     if (query) fetchLive()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query])
 
   if (state === 'idle') return null
@@ -46,7 +53,10 @@ export default function LiveProducts({ query, jumiaSearchUrl }) {
         <Zap size={16} className="text-amber-500" />
         <h3 className="font-bold text-gray-700 text-sm">
           Live from Jumia
-          <span className="ml-2 text-xs font-normal text-gray-400">real-time prices</span>
+          <span className="ml-2 text-xs font-normal text-gray-400">
+            {stale ? 'cached prices — tap Retry to refresh' : 'real-time prices'}
+          </span>
+          {stale && <Clock size={11} className="text-amber-400" />}
         </h3>
       </div>
 
@@ -81,9 +91,9 @@ export default function LiveProducts({ query, jumiaSearchUrl }) {
               )}
               <div className="p-2.5">
                 <p className="text-xs text-gray-700 font-medium line-clamp-2 leading-tight">{p.name}</p>
-                {p.price && (
-                  <p className="text-amber-600 font-bold text-xs mt-1">{p.price}</p>
-                )}
+                <p className={`font-bold text-xs mt-1 ${p.price ? 'text-amber-600' : 'text-gray-400 font-medium'}`}>
+                  {p.price || 'See price on Jumia'}
+                </p>
                 <div className="flex items-center gap-1 mt-1.5 text-[10px] text-gray-400 group-hover:text-amber-500 transition-colors">
                   <ExternalLink size={9} />
                   Buy on Jumia

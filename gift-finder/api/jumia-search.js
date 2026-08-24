@@ -4,7 +4,9 @@
  * Scraping logic lives in ./_lib/jumia-scraper.mjs (shared with Netlify + dev server).
  */
 
-import { searchJumia } from './_lib/jumia-scraper.mjs'
+import { searchJumia, JumiaError } from './_lib/jumia-scraper.mjs'
+
+export const maxDuration = 20
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -17,6 +19,9 @@ export default async function handler(req, res) {
     const data = await searchJumia(q)
     return res.status(200).json(data)
   } catch (err) {
-    return res.status(502).json({ error: err.message, live: false })
+    return res.status(502).json({
+      error: err instanceof JumiaError ? err.message : 'Upstream request failed',
+      live: false,
+    })
   }
 }
